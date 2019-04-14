@@ -37,6 +37,7 @@ class Corpus():
         if self.curr_batch != self.num_of_possible_batches:
             curr_dataset = self.all_words_in_corpora[self.curr_batch*self.batch_size:(self.curr_batch+1)*self.batch_size]
             print('cur_dataset length: {}'.format(len(curr_dataset)))
+            print(curr_dataset)
             for i in range(len(curr_dataset)-self.window_length):
                 x_lst = curr_dataset[i:i+self.window_length]
                 x.append([self.get_index(word) for word in x_lst])
@@ -59,11 +60,12 @@ class Corpus():
             if file not in ['CONTENTS', 'README', 'cats.txt', 'categories.pickle']:
                 path_to_file = dir_path + file
                 with open(path_to_file, 'r') as f:
-                    lines = f.read()
+                    lines = f.read().strip()
                     all_lines = lines.split(' ')
-                    all_words = all_words + all_lines
                     for word in all_lines:
-                        word_freq_table[word.split('/')[0]] +=1
+                        cleaned_word = word.split('/')[0]
+                        word_freq_table[cleaned_word] +=1
+                        all_words.append(cleaned_word)
         self.all_words_in_corpora = all_words
         self.vocabulary_length = len(word_freq_table)
         self.word_freq_table = word_freq_table
@@ -79,17 +81,20 @@ class Corpus():
             return self.index_mapper['<unk>']
     def get_probability(self, word):
         return self.word_freq_table[word]/self.vocabulary_length
-    def get_feature_vector(self, word):
-        idx = self.get_index(word)
-        return self.C[idx, :]
+    def get_feature_vector(self, idx):
+        return self.C[int(idx), :]
 
 
 def main():    
     corp = Corpus()
     # print(corp.get_index('the'))
-    print(len(corp.get_feature_vector('the')))
+    # print(len(corp.get_feature_vector('the')))
     X, Y = corp.get_batch()
     print(X)
+    print()
+    print(Y)
+    print(len(X))
+    print(len(Y))
 
 
 
