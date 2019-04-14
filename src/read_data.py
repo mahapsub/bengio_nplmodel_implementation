@@ -61,6 +61,7 @@ class Corpus():
                 with open(path_to_file, 'r') as f:
                     lines = f.read()
                     all_lines = lines.split(' ')
+                    all_words = all_words + all_lines
                     for word in all_lines:
                         word_freq_table[word.split('/')[0]] +=1
         self.all_words_in_corpora = all_words
