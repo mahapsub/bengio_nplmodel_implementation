@@ -23,7 +23,7 @@ class Corpus():
             # self.test_data
         self.num_features = 60
         self.window_length = 4
-        self.batch_size = 128
+        self.batch_size = 512
         self.epochs = 1
 
         self.curr_batch = 0
@@ -50,7 +50,7 @@ class Corpus():
         y= []
         if self.curr_batch != self.num_of_possible_batches:
             curr_dataset = self.all_words_in_corpora[self.curr_batch*self.batch_size:(self.curr_batch+1)*self.batch_size]
-            print('cur_dataset length: {}'.format(len(curr_dataset)))
+            # print('cur_dataset length: {}'.format(len(curr_dataset)))
             for i in range(len(curr_dataset)-self.window_length):
                 x_lst = curr_dataset[i:i+self.window_length]
                 # print('x:{}'.format(x_lst))
@@ -106,34 +106,57 @@ def tensorflow_implementation():
     X, Y = corp.get_batch()
     print(X.shape)
     print(Y.shape)
+    print(Y[:,0])
+    print("embedding:", corp.createC().shape)
     
+    
+
+    x_indexes = tf.placeholder(tf.int64, [None, corp.window_length])
     C = tf.Variable(corp.createC())
 
-    x = tf.placeholder(tf.float32, [None, corp.num_features])
-    y_pred = tf.placeholder(tf.float32, [None, corp.vocabulary_length])
+
+    print(x_indexes)
+    X = tf.reshape(tf.nn.embedding_lookup(params=C,ids=x_indexes), [-1, corp.num_features*corp.window_length])
     y_actual = tf.placeholder(tf.float32, [None, Y.shape[1]])
     
     
-
     # Create new weights and biases.
-    weights = tf.Variable(tf.zeros([corp.num_features, corp.vocabulary_length]))
-    biases = tf.Variable(tf.zeros([corp.vocabulary_length]))
+    weights = tf.Variable(tf.truncated_normal([corp.num_features*corp.window_length, corp.vocabulary_length], dtype=tf.float64))
+    biases = tf.Variable(tf.truncated_normal([corp.vocabulary_length], dtype=tf.float64))
 
     # Calculate the layer as the matrix multiplication of
     # the input and weights, and then add the bias-values.
-    layer_tanh = tf.nn.tanh(tf.matmul(x, weights) + biases)
-    y_pred = tf.nn.softmax(layer_tanh)
-    y_actual = tf.argmax(y_pred, axis=1)
-
 
     
+    layer_tanh = tf.nn.tanh(tf.matmul(X, weights) + biases)
+    y_pred_prob = tf.nn.softmax(layer_tanh)
+    y_pred = tf.cast(tf.argmax(y_pred_prob, axis=1),tf.float32)
 
-    print(x)
-    print(y_pred)
-    print(y_actual)
-    print(C)
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=layer_tanh,
+                                                           labels=y_actual)
+    cost = tf.reduce_mean(cross_entropy)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.01).minimize(cost)
+    correct_prediction = tf.equal(y_pred, y_actual)
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    # C = tf.variable()
+    # session = tf.Session()
+    epochs = 10
+    with tf.Session() as session:
+        session.run(tf.global_variables_initializer())
+
+        for i in range(epochs):
+            for val in range(corp.get_total_batches()):
+                x_batch, y_true_batch = corp.get_batch()
+                feed_dict_train = {
+                    x_indexes: x_batch,
+                    y_actual: y_true_batch
+                }
+                if val % 100 == 0:
+                    print('batch num: {}'.format(val))
+                optimizer.run(feed_dict=feed_dict_train)
+            cst, acc = session.run([cost,accuracy], feed_dict=feed_dict_train)
+            print('epoch {0} ---- acc:{1}, cost:{2}'.format(i, acc,cst))
+
 
 
 
