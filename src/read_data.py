@@ -1,5 +1,5 @@
 import numpy as np
-import torch
+# import torch
 import tensorflow as tf
 import glob
 import os 
@@ -23,8 +23,8 @@ class Corpus():
             # self.test_data
         self.num_features = 60
         self.window_length = 4
-        self.batch_size = 512
-        self.epochs = 1
+        self.batch_size = 128
+        self.epochs = 100
 
         self.curr_batch = 0
         self.num_of_possible_batches = self.get_total_batches()
@@ -58,6 +58,8 @@ class Corpus():
                 y.append(self.get_index_from_word(curr_dataset[i+self.window_length]))
                 # print('y:{}'.format(curr_dataset[i+self.window_length]))
         self.curr_batch += 1
+        if self.curr_batch == self.num_of_possible_batches:
+            self.curr_batch = 0
         return np.array(x),np.array(y).reshape(-1,1)
             
 
@@ -69,19 +71,19 @@ class Corpus():
     def process(self):
         all_words = []
         word_freq_table = Counter()
-        with open(train_path, 'r') as f:
+        with open(train_path, 'r', encoding='utf8') as f:
             lines = f.read().strip()
             all_lines = lines.split(' ')
             for word in all_lines:
                 word_freq_table[word] +=1
                 all_words.append(word)
-        self.all_words_in_corpora = all_words
+        self.all_words_in_corpora = all_words[:10000]
         self.vocabulary_length = len(word_freq_table)
         self.word_freq_table = word_freq_table
-        with open(valid_path, 'r') as f:
+        with open(valid_path, 'r', encoding='utf8') as f:
             lines = f.read().strip()
             self.validation_data =  lines.split(' ')
-        with open(test_path, 'r') as f:
+        with open(test_path, 'r', encoding='utf8') as f:
             lines = f.read().strip()
             self.test_data = lines.split(' ')
     def get_word_freq(self):
@@ -103,26 +105,15 @@ class Corpus():
 
 def tensorflow_implementation():
     corp = Corpus()
-    X, Y = corp.get_batch()
-    print(X.shape)
-    print(Y.shape)
-    print(Y[:,0])
-    print("embedding:", corp.createC().shape)
-    
-    
-
-    x_indexes = tf.placeholder(tf.int64, [None, corp.window_length])
-    C = tf.Variable(corp.createC())
-
-
-    print(x_indexes)
+    x_indexes = tf.placeholder(tf.int64, [None, corp.window_length], name='x_indexes')
+    C = tf.Variable(corp.createC(), name='C')
     X = tf.reshape(tf.nn.embedding_lookup(params=C,ids=x_indexes), [-1, corp.num_features*corp.window_length])
-    y_actual = tf.placeholder(tf.float32, [None, Y.shape[1]])
+    y_actual = tf.placeholder(tf.float32, [None, 1], name='y_actual')
     
     
     # Create new weights and biases.
-    weights = tf.Variable(tf.truncated_normal([corp.num_features*corp.window_length, corp.vocabulary_length], dtype=tf.float64))
-    biases = tf.Variable(tf.truncated_normal([corp.vocabulary_length], dtype=tf.float64))
+    weights = tf.Variable(tf.truncated_normal([corp.num_features*corp.window_length, corp.vocabulary_length], dtype=tf.float64), name='w1')
+    biases = tf.Variable(tf.truncated_normal([corp.vocabulary_length], dtype=tf.float64), name='bias')
 
     # Calculate the layer as the matrix multiplication of
     # the input and weights, and then add the bias-values.
@@ -130,21 +121,29 @@ def tensorflow_implementation():
     
     layer_tanh = tf.nn.tanh(tf.matmul(X, weights) + biases)
     y_pred_prob = tf.nn.softmax(layer_tanh)
-    y_pred = tf.cast(tf.argmax(y_pred_prob, axis=1),tf.float32)
+    y_pred = tf.cast(tf.argmax(y_pred_prob, axis=1),tf.float32, name='y_pred')
 
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=layer_tanh,
                                                            labels=y_actual)
     cost = tf.reduce_mean(cross_entropy)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.01).minimize(cost)
+    tf.summary.scalar("loss", cost)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
     correct_prediction = tf.equal(y_pred, y_actual)
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
+    tf.summary.scalar("Accuracy", accuracy)
+    merged_summary_op = tf.summary.merge_all()
     # session = tf.Session()
-    epochs = 10
+    epochs =corp.epochs
+    logs_path = 'logs/'
+    saver = tf.train.Saver()
+    log_arr = []
+    
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
-
+        summary_writer = tf.summary.FileWriter(logs_path, graph = tf.get_default_graph())
         for i in range(epochs):
+            avg_cost = 0
+            avg_acc = 0
             for val in range(corp.get_total_batches()):
                 x_batch, y_true_batch = corp.get_batch()
                 feed_dict_train = {
@@ -153,16 +152,30 @@ def tensorflow_implementation():
                 }
                 if val % 100 == 0:
                     print('batch num: {}'.format(val))
-                optimizer.run(feed_dict=feed_dict_train)
-            cst, acc = session.run([cost,accuracy], feed_dict=feed_dict_train)
-            print('epoch {0} ---- acc:{1}, cost:{2}'.format(i, acc,cst))
-
+                _,cst, acc, summary = session.run([optimizer,cost,accuracy, merged_summary_op], feed_dict=feed_dict_train)
+                cur_batch = i*corp.get_total_batches()+val
+                summary_writer.add_summary(summary,cur_batch)
+                avg_cost += cst / corp.get_total_batches()
+                avg_acc += acc / corp.get_total_batches()
+            if i%10==0:
+                saver.save(session, './model_chkpnts_{}/bengio_run_test'.format(str(i)), global_step=i)
+            
+            print('epoch {0} ---- acc:{1}, cost:{2}'.format(i, avg_acc,avg_cost))
+            log_arr.append([avg_cost,avg_acc,i])    
+            np.savetxt('history.txt', np.array(log_arr))
 
 
 
 def main():    
     tensorflow_implementation()
+    # history= np.loadtxt('history.txt')
 
+    # import matplotlib.pyplot as plt
+    # print(history)
+    # print(history.shape)
+    # print(history[:,1])
+    # plt.plot(history[:,1])
+    # plt.show()
 
 
 
