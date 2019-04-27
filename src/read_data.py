@@ -9,20 +9,21 @@ from collections import Counter
 
 # dir_path = 'data/corpora/'
 
-train_path = '../data/corpora/wiki.train.txt'
-valid_path = '../data/corpora/wiki.valid.txt'
-test_path = '../data/corpora/wiki.test.txt'
+train_path = 'data/corpora/wiki.train.txt'
+valid_path = 'data/corpora/wiki.valid.txt'
+test_path = 'data/corpora/wiki.test.txt'
 
 class Corpus():
     def __init__(self):
         self.process()
+        self.debug_set = set()
             # self.all_words_in_corpora
             # self.word_freq_table
             # self.vocabulary_length
             # self.validation_data
             # self.test_data
         self.num_features = 60
-        self.window_length = 4
+        self.window_length = 5
         self.batch_size = 128
         self.epochs = 100
 
@@ -49,23 +50,32 @@ class Corpus():
         x= []
         y= []
         if self.curr_batch != self.num_of_possible_batches:
-            curr_dataset = self.all_words_in_corpora[self.curr_batch*self.batch_size:(self.curr_batch+1)*self.batch_size]
+            if self.curr_batch == self.num_of_possible_batches:
+                curr_dataset = self.all_words_in_corpora[self.curr_batch*self.batch_size:]
+            else:
+                curr_dataset = self.all_words_in_corpora[self.curr_batch*self.batch_size:(self.curr_batch+1)*self.batch_size]
             # print('cur_dataset length: {}'.format(len(curr_dataset)))
             for i in range(len(curr_dataset)-self.window_length):
                 x_lst = curr_dataset[i:i+self.window_length]
+                for word in x_lst:
+                    self.debug_set.add(word)
                 # print('x:{}'.format(x_lst))
                 x.append([self.get_index_from_word(word) for word in x_lst])
                 y.append(self.get_index_from_word(curr_dataset[i+self.window_length]))
                 # print('y:{}'.format(curr_dataset[i+self.window_length]))
         self.curr_batch += 1
+        # print(len(self.debug_set))
         if self.curr_batch == self.num_of_possible_batches:
             self.curr_batch = 0
+            self.debug_set = set()
+        
         return np.array(x),np.array(y).reshape(-1,1)
 
 
     def get_total_batches(self):
         return int(len(self.all_words_in_corpora)/self.batch_size)
     def createC(self):
+        print('Creating new C')
         return np.random.rand(self.vocabulary_length, self.num_features)
 
     def process(self):
@@ -74,11 +84,15 @@ class Corpus():
         with open(train_path, 'r', encoding='utf8') as f:
             lines = f.read().strip()
             all_lines = lines.split(' ')
-            for word in all_lines:
+            myset = set()
+            for word in all_lines[:10000]:
+                myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
-        self.all_words_in_corpora = all_words[:10000]
+        self.all_words_in_corpora = all_words
         self.vocabulary_length = len(word_freq_table)
+        print('myset: ', len(myset))
+        print('vocab_length: ', self.vocabulary_length)
         self.word_freq_table = word_freq_table
         with open(valid_path, 'r', encoding='utf8') as f:
             lines = f.read().strip()
@@ -125,6 +139,8 @@ def tensorflow_implementation():
 
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=layer_tanh,
                                                            labels=y_actual)
+
+    
     cost = tf.reduce_mean(cross_entropy, name='cost')
     tf.summary.scalar("loss", cost)
     perplex = tf.exp(cost, name='perplexity')
@@ -163,6 +179,8 @@ def tensorflow_implementation():
                 saver.save(session, './model_chkpnts_{}/bengio_run_test'.format(str(i)), global_step=i)
 
             print('epoch {0} ---- acc:{1}, cost:{2}'.format(i, avg_acc,avg_cost))
+            print(session.run(C[-4,:]))
+            print(len(corp.debug_set))
             log_arr.append([avg_cost,avg_acc,i])
             np.savetxt('history.txt', np.array(log_arr))
 
@@ -187,8 +205,24 @@ def load_model(chk_dir,chk_num):
         }
         print(session.run([accuracy,perplex,cost], feed_dict_train))
 
+def clean_up():
+    import shutil
+    import glob
+    # os.removedirs('logs')
+    chkpoints = 'model_chk*'
+    r = glob.glob(chkpoints)
+    dir_to_remove = ['logs']+r
+    # print(dir_to_remove)
+    for i in dir_to_remove:
+        try:
+            shutil.rmtree(i)
+        except Exception as e:
+            print(e)
+
+        
+
 def main():
-    # tensorflow_implementation()
+    tensorflow_implementation()
     # history= np.loadtxt('history.txt')
 
     # import matplotlib.pyplot as plt
@@ -197,8 +231,8 @@ def main():
     # print(history[:,1])
     # plt.plot(history[:,1])
     # plt.show()
-
-    load_model('./model_chkpnts_20/',20)
+    # clean_up()
+    # load_model('./model_chkpnts_90/',90)
 
 
 
