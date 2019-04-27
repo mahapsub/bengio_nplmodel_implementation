@@ -166,7 +166,7 @@ def tensorflow_implementation():
             log_arr.append([avg_cost,avg_acc,i])
             np.savetxt('history.txt', np.array(log_arr))
 
-
+# provide chkpoint directory and number for inference using provided checkpoint
 def load_model(chk_dir,chk_num):
     with tf.Session() as session:
 
