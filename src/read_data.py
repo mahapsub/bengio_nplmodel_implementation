@@ -185,7 +185,7 @@ def tensorflow_implementation():
                 summary_writer.add_summary(summary,cur_batch)
                 avg_cost += cst / corp.get_total_batches()
                 avg_acc += acc / corp.get_total_batches()
-            if i%10==0:
+            if i%10==9:
                 saver.save(session, './model_chkpnts_{}/bengio_run_test'.format(str(i)), global_step=i)
 
             print('epoch {0} ---- acc:{1}, cost:{2}'.format(i, avg_acc,avg_cost))
