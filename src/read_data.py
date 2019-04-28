@@ -9,9 +9,9 @@ from collections import Counter
 
 # dir_path = 'data/corpora/'
 
-train_path = 'data/corpora/wiki.train.txt'
-valid_path = 'data/corpora/wiki.valid.txt'
-test_path = 'data/corpora/wiki.test.txt'
+train_path = '../data/corpora/wiki.train.txt'
+valid_path = '../data/corpora/wiki.valid.txt'
+test_path = '../data/corpora/wiki.test.txt'
 
 class Corpus():
     def __init__(self):
@@ -23,9 +23,10 @@ class Corpus():
             # self.validation_data
             # self.test_data
         self.num_features = 60
-        self.window_length = 5
+        self.window_length = 4
         self.batch_size = 128
         self.epochs = 100
+        self.num_hidden_units = 50
 
         self.curr_batch = 0
         self.num_of_possible_batches = self.get_total_batches()
@@ -68,7 +69,7 @@ class Corpus():
         if self.curr_batch == self.num_of_possible_batches:
             self.curr_batch = 0
             self.debug_set = set()
-        
+
         return np.array(x),np.array(y).reshape(-1,1)
 
 
@@ -85,7 +86,7 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             myset = set()
-            for word in all_lines[:10000]:
+            for word in all_lines[:int(len(all_lines)/4)]:
                 myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
@@ -122,30 +123,39 @@ def tensorflow_implementation():
     x_indexes = tf.placeholder(tf.int64, [None, corp.window_length], name='x_indexes')
     C = tf.Variable(corp.createC(), name='C')
     X = tf.reshape(tf.nn.embedding_lookup(params=C,ids=x_indexes), [-1, corp.num_features*corp.window_length], name='elookup')
-    y_actual = tf.placeholder(tf.float32, [None, 1], name='y_actual')
+    y_actual = tf.placeholder(tf.int64, [None, 1], name='y_actual')
 
 
     # Create new weights and biases.
-    weights = tf.Variable(tf.truncated_normal([corp.num_features*corp.window_length, corp.vocabulary_length], dtype=tf.float64), name='w1')
-    biases = tf.Variable(tf.truncated_normal([corp.vocabulary_length], dtype=tf.float64), name='bias')
 
+    H = tf.Variable(tf.truncated_normal([corp.num_features*corp.window_length, corp.num_hidden_units], dtype=tf.float64), name='H')
+    d = tf.Variable(tf.truncated_normal([corp.num_hidden_units], dtype=tf.float64), name='d')
+
+    # corp.num_features*corp.window_length
     # Calculate the layer as the matrix multiplication of
     # the input and weights, and then add the bias-values.
 
+    layer_tanh = tf.nn.tanh(tf.matmul(X, H) + d)
 
-    layer_tanh = tf.nn.tanh(tf.matmul(X, weights) + biases)
-    y_pred_prob = tf.nn.softmax(layer_tanh)
-    y_pred = tf.cast(tf.argmax(y_pred_prob, axis=1),tf.float32, name='y_pred')
+    U = tf.Variable(tf.truncated_normal([corp.num_hidden_units,corp.vocabulary_length], dtype=tf.float64), name='U')
+    b = tf.Variable(tf.truncated_normal([corp.vocabulary_length], dtype=tf.float64), name='b')
 
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=layer_tanh,
-                                                           labels=y_actual)
+    W = tf.Variable(tf.truncated_normal([corp.num_features*corp.window_length, corp.vocabulary_length], dtype=tf.float64), name='W')
 
-    
+    full_mul = b + tf.matmul(X,W) + tf.matmul(layer_tanh,U)
+
+    y_pred_prob = tf.nn.softmax(full_mul)
+    y_pred = tf.cast(tf.argmax(full_mul, axis=1),tf.int64, name='y_pred')
+    onehot_tar = tf.one_hot(tf.squeeze(y_actual), corp.vocabulary_length, 1.0, 0.0)
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=full_mul,
+                                                           labels=onehot_tar)
+
+
     cost = tf.reduce_mean(cross_entropy, name='cost')
     tf.summary.scalar("loss", cost)
     perplex = tf.exp(cost, name='perplexity')
     tf.summary.scalar("perplexity", perplex)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.01).minimize(cost)
     correct_prediction = tf.equal(y_pred, y_actual)
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
     tf.summary.scalar("Accuracy", accuracy)
@@ -179,7 +189,7 @@ def tensorflow_implementation():
                 saver.save(session, './model_chkpnts_{}/bengio_run_test'.format(str(i)), global_step=i)
 
             print('epoch {0} ---- acc:{1}, cost:{2}'.format(i, avg_acc,avg_cost))
-            print(session.run(C[-4,:]))
+            print(session.run(C[0,:]))
             print(len(corp.debug_set))
             log_arr.append([avg_cost,avg_acc,i])
             np.savetxt('history.txt', np.array(log_arr))
@@ -219,9 +229,10 @@ def clean_up():
         except Exception as e:
             print(e)
 
-        
+
 
 def main():
+    clean_up()
     tensorflow_implementation()
     # history= np.loadtxt('history.txt')
 
@@ -231,7 +242,7 @@ def main():
     # print(history[:,1])
     # plt.plot(history[:,1])
     # plt.show()
-    # clean_up()
+    #
     # load_model('./model_chkpnts_90/',90)
 
 
