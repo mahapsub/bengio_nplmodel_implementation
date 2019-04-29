@@ -9,12 +9,11 @@ import time
 
 # dir_path = 'data/corpora/'
 
-train_path = '../data/corpora/wiki.train.txt'
-valid_path = '../data/corpora/wiki.valid.txt'
-test_path = '../data/corpora/wiki.test.txt'
+train_path = 'data/corpora/brown.train.txt'
+
 
 class Corpus():
-    def __init__(self, name='default', features=60, window_length=4, epochs=21, h=50, batch_size=1024, path='../data/corpora/wiki.train.txt'):
+    def __init__(self, name='default', features=60, window_length=4, epochs=2, h=50, batch_size=1024, path='data/corpora/brown.train.txt'):
         self.path = path
         self.process()
         self.debug_set = set()
@@ -89,8 +88,8 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             # myset = set()
-            # for word in all_lines[:12000]:
-            for word in all_lines:
+            for word in all_lines[:12000]:
+            # for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
@@ -186,7 +185,7 @@ def tensorflow_implementation(name_of_model):
     merged_summary_op = tf.summary.merge_all()
     # session = tf.Session()
     epochs =corp.epochs
-    logs_path = 'logs/{}'.format(corp.name)
+    logs_path = 'brown_logs/{}'.format(corp.name)
     saver = tf.train.Saver()
     log_arr = []
     model_name = corp.name
@@ -222,7 +221,7 @@ def tensorflow_implementation(name_of_model):
                 
 
             if i%3==0 or i == epochs-1:
-                path_to_model= 'model/{0}/model_chkpnts_{1}/'.format(model_name,str(i))
+                path_to_model= 'brown_model/{0}/model_chkpnts_{1}/'.format(model_name,str(i))
                 os.makedirs(path_to_model, exist_ok=True)
                 name = 'bengio'
                 saver.save(session, path_to_model+name, global_step=i)
@@ -256,7 +255,7 @@ def select_corpus(name_of_model, corpus_path):
     return corp
 # provide chkpoint directory and number for inference using provided checkpoint
 def load_model(name,chk_num):
-    path = 'model/{0}/model_chkpnts_{1}/'.format(name, chk_num)
+    path = 'brown_model/{0}/model_chkpnts_{1}/'.format(name, chk_num)
     with tf.Session() as session:
         saver = tf.train.import_meta_graph(path+'bengio-'+str(chk_num)+'.meta')
         saver.restore(session,tf.train.latest_checkpoint(path))
