@@ -29,7 +29,7 @@ class Corpus():
         self.epochs = epochs
         self.num_hidden_units = h
         self.name = name
-        
+
 
         self.curr_batch = 0
         self.num_of_possible_batches = self.get_total_batches()
@@ -89,8 +89,8 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             # myset = set()
-            # for word in all_lines[:12000]:
-            for word in all_lines:
+            for word in all_lines[:10240]:
+            # for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
@@ -121,7 +121,7 @@ class Corpus():
 
 
 def tensorflow_implementation(name_of_model):
-    
+
     corp = None
 #  def __init__(self, name='default', features=60, window_length=4, epochs=1, h=50, batch_size=1024):
     if name_of_model == 'mlp1':
@@ -139,7 +139,7 @@ def tensorflow_implementation(name_of_model):
     if name_of_model == 'mlp9':
         print('Training model{}'.format(name_of_model))
         corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=1024)
-        
+
 
     x_indexes = tf.placeholder(tf.int64, [None, corp.window_length], name='x_indexes')
     C = tf.Variable(corp.createC(), name='C')
@@ -219,7 +219,7 @@ def tensorflow_implementation(name_of_model):
                 batch_end_time = session.run(graph_time)
                 if val % int(corp.get_total_batches()/10) == 0:
                     print('batch num: {0}/{1}'.format(val, corp.get_total_batches(), batch_end_time-batch_start_time))
-                
+
 
             if i%3==0 or i == epochs-1:
                 path_to_model= 'model/{0}/model_chkpnts_{1}/'.format(model_name,str(i))
@@ -270,16 +270,18 @@ def load_model(name,chk_num):
         avg_cost = 0
         avg_acc = 0
         avg_perplex = 0
+        print(corp.get_total_batches())
         for val in range(corp.get_total_batches()):
             x_batch, y_actual_batch = corp.get_batch()
             feed_dict_train = {
                 x: x_batch,
                 y_actual: y_actual_batch,
             }
-            cst, acc, perplex = session.run([cost,accuracy, perplex], feed_dict=feed_dict_train)
+            cst, acc, perplexity = session.run([cost,accuracy,perplex], feed_dict=feed_dict_train)
+            print(cst,acc,perplexity)
             avg_cost += cst / corp.get_total_batches()
             avg_acc += acc / corp.get_total_batches()
-            avg_perplex += perplex/corp.get_total_batches()
+            avg_perplex = np.exp(avg_cost)
         print('cost: {0}, acc: {1}, perplex: {2}'.format(avg_cost, avg_acc, avg_perplex))
         # print(session.run([accuracy,perplex,cost], feed_dict_train))
 
@@ -300,9 +302,9 @@ def clean_up(name):
 
 
 def main():
-    # load_model('mlp1', 0)
-    clean_up(sys.argv[1])
-    tensorflow_implementation(sys.argv[1])
+    load_model('mlp1', 20)
+    # clean_up(sys.argv[1])
+    # tensorflow_implementation(sys.argv[1])
     # history= np.loadtxt('history.txt')
 
     # import matplotlib.pyplot as plt
