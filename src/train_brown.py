@@ -9,11 +9,11 @@ import time
 
 # dir_path = 'data/corpora/'
 
-train_path = 'data/corpora/brown.train.txt'
+train_path = '../data/corpora/brown.train.txt'
 
 
 class Corpus():
-    def __init__(self, name='default', features=60, window_length=4, epochs=2, h=50, batch_size=1024, path='data/corpora/brown.train.txt'):
+    def __init__(self, name='default', features=60, window_length=4, epochs=21, h=50, batch_size=1024, path='../data/corpora/brown.train.txt'):
         self.path = path
         self.process()
         self.debug_set = set()
@@ -88,8 +88,8 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             # myset = set()
-            for word in all_lines[:12000]:
-            # for word in all_lines:
+            # for word in all_lines[:12000]:
+            for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
