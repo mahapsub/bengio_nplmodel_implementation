@@ -9,9 +9,9 @@ import time
 
 # dir_path = 'data/corpora/'
 
-train_path = '../data/corpora/wiki.train.txt'
-valid_path = '../data/corpora/wiki.valid.txt'
-test_path = '../data/corpora/wiki.test.txt'
+
+
+
 
 class Corpus():
     def __init__(self, name='default', features=60, window_length=4, epochs=21, h=50, batch_size=1024, path='../data/corpora/wiki.train.txt'):
@@ -89,8 +89,8 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             # myset = set()
-            for word in all_lines[:10240]:
-            # for word in all_lines:
+            # for word in all_lines[:10240]:
+            for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
@@ -240,23 +240,23 @@ def select_corpus(name_of_model, corpus_path):
     corp = None
     if name_of_model == 'mlp1':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=1024)
+        corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=1024, path=corpus_path)
     if name_of_model == 'mlp3':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp3', h=0,features=60, window_length=5, batch_size=1024)
+        corp = Corpus(name='mlp3', h=0,features=60, window_length=5, batch_size=1024, path=corpus_path)
     if name_of_model == 'mlp5':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp5', h=50,features=30, window_length=5, batch_size=1024)
+        corp = Corpus(name='mlp5', h=50,features=30, window_length=5, batch_size=1024, path=corpus_path)
     if name_of_model == 'mlp7':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp7', h=50,features=30, window_length=3, batch_size=1024)
+        corp = Corpus(name='mlp7', h=50,features=30, window_length=3, batch_size=1024, path=corpus_path)
     if name_of_model == 'mlp9':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=1024)
+        corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=1024, path=corpus_path)
     return corp
 # provide chkpoint directory and number for inference using provided checkpoint
-def load_model(name,chk_num):
-    path = 'model/{0}/model_chkpnts_{1}/'.format(name, chk_num)
+def load_model(name,chk_num, corpora_name, corpus_path):
+    path = '{2}_model/{0}/model_chkpnts_{1}/'.format(name, chk_num,corpora_name)
     with tf.Session() as session:
         saver = tf.train.import_meta_graph(path+'bengio-'+str(chk_num)+'.meta')
         saver.restore(session,tf.train.latest_checkpoint(path))
@@ -266,7 +266,7 @@ def load_model(name,chk_num):
         perplex = graph.get_tensor_by_name("perplexity:0")
         accuracy = graph.get_tensor_by_name("accuracy:0")
         cost = graph.get_tensor_by_name("cost:0")
-        corp = select_corpus(name, None)
+        corp = select_corpus(name, corpus_path=corpus_path)
         avg_cost = 0
         avg_acc = 0
         avg_perplex = 0
@@ -302,7 +302,14 @@ def clean_up(name):
 
 
 def main():
-    load_model('mlp1', 20)
+    train_path = '../data/corpora/{}.train.txt'
+    valid_path = '../data/corpora/{}.valid.txt'
+    test_path = '../data/corpora/{}.test.txt'
+
+    corpus = 'brown'
+
+    load_model('mlp9', 20, corpus, test_path.format(corpus) )
+    # load_model('mlp1', 20)
     # clean_up(sys.argv[1])
     # tensorflow_implementation(sys.argv[1])
     # history= np.loadtxt('history.txt')

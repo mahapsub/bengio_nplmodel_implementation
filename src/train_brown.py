@@ -255,7 +255,7 @@ def select_corpus(name_of_model, corpus_path):
     return corp
 # provide chkpoint directory and number for inference using provided checkpoint
 def load_model(name,chk_num):
-    path = 'brown_model/{0}/model_chkpnts_{1}/'.format(name, chk_num)
+    path = 'model/{0}/model_chkpnts_{1}/'.format(name, chk_num)
     with tf.Session() as session:
         saver = tf.train.import_meta_graph(path+'bengio-'+str(chk_num)+'.meta')
         saver.restore(session,tf.train.latest_checkpoint(path))
@@ -269,16 +269,18 @@ def load_model(name,chk_num):
         avg_cost = 0
         avg_acc = 0
         avg_perplex = 0
+        print(corp.get_total_batches())
         for val in range(corp.get_total_batches()):
             x_batch, y_actual_batch = corp.get_batch()
             feed_dict_train = {
                 x: x_batch,
                 y_actual: y_actual_batch,
             }
-            cst, acc, perplex = session.run([cost,accuracy, perplex], feed_dict=feed_dict_train)
+            cst, acc, perplexity = session.run([cost,accuracy,perplex], feed_dict=feed_dict_train)
+            print(cst,acc,perplexity)
             avg_cost += cst / corp.get_total_batches()
             avg_acc += acc / corp.get_total_batches()
-            avg_perplex += perplex/corp.get_total_batches()
+            avg_perplex = np.exp(avg_cost)
         print('cost: {0}, acc: {1}, perplex: {2}'.format(avg_cost, avg_acc, avg_perplex))
         # print(session.run([accuracy,perplex,cost], feed_dict_train))
 
