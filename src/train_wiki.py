@@ -14,7 +14,7 @@ import time
 
 
 class Corpus():
-    def __init__(self, name='default', features=60, window_length=4, epochs=21, h=50, batch_size=1024, path='../data/corpora/wiki.train.txt'):
+    def __init__(self, name='default', features=60, window_length=4, epochs=21, h=50, batch_size=128, path='../data/corpora/wiki.train.txt'):
         self.path = path
         self.process()
         self.debug_set = set()
@@ -89,8 +89,8 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             # myset = set()
-            # for word in all_lines[:10240]:
-            for word in all_lines:
+            for word in all_lines[:10240]:
+            # for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
@@ -120,25 +120,32 @@ class Corpus():
         return self.C[int(idx), :]
 
 
-def tensorflow_implementation(name_of_model):
+def tensorflow_implementation(name_of_model, train_path, valid_path, corpora_name):
 
     corp = None
+    valid_corp = None
 #  def __init__(self, name='default', features=60, window_length=4, epochs=1, h=50, batch_size=1024):
     if name_of_model == 'mlp1':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=1024)
+        # corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=1024)
+        corp = select_corpus('mlp1', path=train_path)
+        valid_corp = select_corpus('mlp1', path=valid_path)
     if name_of_model == 'mlp3':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp3', h=0,features=60, window_length=5, batch_size=1024)
+        corp = select_corpus('mlp3', path=train_path)
+        valid_corp = select_corpus('mlp3', path=valid_path)
     if name_of_model == 'mlp5':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp5', h=50,features=30, window_length=5, batch_size=1024)
+        corp = select_corpus('mlp5', path=train_path)
+        valid_corp = select_corpus('mlp5', path=valid_path)
     if name_of_model == 'mlp7':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp7', h=50,features=30, window_length=3, batch_size=1024)
+        corp = select_corpus('mlp7', path=train_path)
+        valid_corp = select_corpus('mlp7', path=valid_path)
     if name_of_model == 'mlp9':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=1024)
+        corp = select_corpus('mlp9', path=train_path)
+        valid_corp = select_corpus('mlp9', path=valid_path)
 
 
     x_indexes = tf.placeholder(tf.int64, [None, corp.window_length], name='x_indexes')
@@ -179,14 +186,18 @@ def tensorflow_implementation(name_of_model):
     tf.summary.scalar("loss", cost)
     perplex = tf.exp(cost, name='perplexity')
     tf.summary.scalar("perplexity", perplex)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.01).minimize(cost)
+
+    # optimizer = tf.train.AdamOptimizer(learning_rate=0.01).minimize(cost)
+    optimizer = tf.contrib.opt.AdamWOptimizer(weight_decay=10e-4, learning_rate=10e-3).minimize(cost)
+
+
     correct_prediction = tf.equal(y_pred, y_actual)
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
     tf.summary.scalar("Accuracy", accuracy)
     merged_summary_op = tf.summary.merge_all()
     # session = tf.Session()
     epochs =corp.epochs
-    logs_path = 'logs/{}'.format(corp.name)
+    logs_path = '{0}_logs/{1}'.format(corpora_name,corp.name)
     saver = tf.train.Saver()
     log_arr = []
     model_name = corp.name
@@ -203,6 +214,10 @@ def tensorflow_implementation(name_of_model):
             epoch_start_time = session.run(graph_time)
             avg_cost = 0
             avg_acc = 0
+
+            avg_val_cost = 0
+            avg_val_acc = 0
+
             for val in range(corp.get_total_batches()):
                 batch_start = time.time()
                 x_batch, y_true_batch = corp.get_batch()
@@ -217,42 +232,55 @@ def tensorflow_implementation(name_of_model):
                 avg_cost += cst / corp.get_total_batches()
                 avg_acc += acc / corp.get_total_batches()
                 batch_end_time = session.run(graph_time)
+
+
+
                 if val % int(corp.get_total_batches()/10) == 0:
                     print('batch num: {0}/{1}'.format(val, corp.get_total_batches(), batch_end_time-batch_start_time))
+            for val in range(valid_corp.get_total_batches()):
+                x_batch, y_true_batch = valid_corp.get_batch()
+                feed_dict_valid = {
+                    x_indexes: x_batch,
+                    y_actual: y_true_batch
+                }
+                val_cst, val_acc= session.run([cost,accuracy], feed_dict=feed_dict_valid)
+                avg_val_cost += val_cst / valid_corp.get_total_batches()
+                avg_val_acc += val_acc / valid_corp.get_total_batches()
 
 
             if i%3==0 or i == epochs-1:
-                path_to_model= 'model/{0}/model_chkpnts_{1}/'.format(model_name,str(i))
+                path_to_model= '{2}_model/{0}/model_chkpnts_{1}/'.format(model_name,str(i), corpora_name)
                 os.makedirs(path_to_model, exist_ok=True)
                 name = 'bengio'
                 saver.save(session, path_to_model+name, global_step=i)
 
             # print(session.run(C[0,:]))
             # print(len(corp.debug_set))
-            log_arr.append([avg_cost,avg_acc,i])
-            np.savetxt('summary_{}.txt'.format(corp.name), np.array(log_arr))
+            log_arr.append([avg_cost,avg_acc,avg_val_cost, avg_val_acc, i])
+            np.savetxt('{1}summary_{0}.txt'.format(corp.name, corpora_name), np.array(log_arr))
             epoch_end_time = session.run(graph_time)
-            print('epoch {0}/{3} ---- acc:{1}, cost:{2}, time: {4:.2f}'.format(i, avg_acc,avg_cost, corp.epochs, epoch_end_time-epoch_start_time))
+            print('epoch {0}/{3} ---- acc:{1}, cost:{2}, val_acc:{5}, val_cost:{6}, time: {4:.2f}'.format(i, avg_acc,avg_cost, corp.epochs, epoch_end_time-epoch_start_time, avg_val_acc, avg_val_cost))
         end = time.time()
         print('{0} model completed in ---time:{1}'.format(corp.name, end-program_start))
 
-def select_corpus(name_of_model, corpus_path):
+def select_corpus(name_of_model, path):
     corp = None
+    batch_size=128
     if name_of_model == 'mlp1':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=1024, path=corpus_path)
+        corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=batch_size, path=path)
     if name_of_model == 'mlp3':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp3', h=0,features=60, window_length=5, batch_size=1024, path=corpus_path)
+        corp = Corpus(name='mlp3', h=0,features=60, window_length=5, batch_size=batch_size, path=path)
     if name_of_model == 'mlp5':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp5', h=50,features=30, window_length=5, batch_size=1024, path=corpus_path)
+        corp = Corpus(name='mlp5', h=50,features=30, window_length=5, batch_size=batch_size, path=path)
     if name_of_model == 'mlp7':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp7', h=50,features=30, window_length=3, batch_size=1024, path=corpus_path)
+        corp = Corpus(name='mlp7', h=50,features=30, window_length=3, batch_size=batch_size, path=path)
     if name_of_model == 'mlp9':
         print('Training model{}'.format(name_of_model))
-        corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=1024, path=corpus_path)
+        corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=batch_size, path=path)
     return corp
 # provide chkpoint directory and number for inference using provided checkpoint
 def load_model(name,chk_num, corpora_name, corpus_path):
@@ -302,16 +330,22 @@ def clean_up(name):
 
 
 def main():
-    train_path = '../data/corpora/{}.train.txt'
-    valid_path = '../data/corpora/{}.valid.txt'
-    test_path = '../data/corpora/{}.test.txt'
+    # train_path = '../data/corpora/{}.train.txt'
+    # valid_path = '../data/corpora/{}.valid.txt'
+    # test_path = '../data/corpora/{}.test.txt'
 
-    corpus = 'brown'
+    # corpus = 'brown'
 
-    load_model('mlp9', 20, corpus, test_path.format(corpus) )
+    # load_model('mlp9', 20, corpus, test_path.format(corpus) )
+
+    # corp = select_corpus('mlp1',path='data/corpora/{}.train.txt'.format('brown') )
+    # print(corp.word_freq_table[:1000])
+
+
+
     # load_model('mlp1', 20)
     # clean_up(sys.argv[1])
-    # tensorflow_implementation(sys.argv[1])
+    tensorflow_implementation(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
     # history= np.loadtxt('history.txt')
 
     # import matplotlib.pyplot as plt
