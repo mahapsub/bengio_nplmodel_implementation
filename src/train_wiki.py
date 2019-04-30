@@ -89,8 +89,8 @@ class Corpus():
             lines = f.read().strip()
             all_lines = lines.split(' ')
             # myset = set()
-            for word in all_lines[:10240]:
-            # for word in all_lines:
+            # for word in all_lines[:10240]:
+            for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
