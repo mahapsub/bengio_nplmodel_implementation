@@ -6,7 +6,7 @@ import os
 from collections import Counter
 import sys
 import time
-
+import re
 # dir_path = 'data/corpora/'
 
 
@@ -14,7 +14,7 @@ import time
 
 
 class Corpus():
-    def __init__(self, name='default', features=60, window_length=4, epochs=21, h=50, batch_size=128, path='../data/corpora/wiki.train.txt'):
+    def __init__(self, name='default', features=60, window_length=4, epochs=50, h=50, batch_size=128, path='../data/corpora/wiki.train.txt'):
         self.path = path
         self.process()
         self.debug_set = set()
@@ -37,7 +37,8 @@ class Corpus():
         # print('creating corpus from file')
 
         self.index_mapper = dict()
-        count = 0
+        self.index_mapper['<unk>'] = 0
+        count = 1
         for word, freq in self.word_freq_table.items():
             self.index_mapper[word] = count
             count += 1
@@ -87,13 +88,23 @@ class Corpus():
         word_freq_table = Counter()
         with open(self.path, 'r', encoding='utf8') as f:
             lines = f.read().strip()
-            all_lines = lines.split(' ')
+            # all_lines = lines.split(' ')
+            all_lines = re.findall(r"[\w']+|[.,!?;]", lines)
             # myset = set()
-            # for word in all_lines[:10240]:
-            for word in all_lines:
+            for word in all_lines[:102400]:
+            # for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
+        word_freq_table['<rare>'] = 0
+        to_delete = []
+        for word in word_freq_table.keys():
+            if word_freq_table[word] < 3:
+                word_freq_table['<rare>'] += 1
+                to_delete.append(word)
+        for word in to_delete:
+            del word_freq_table[word]
+        print (word_freq_table)
         self.all_words_in_corpora = all_words
         self.vocabulary_length = len(word_freq_table)
         self.word_freq_table = word_freq_table
@@ -149,7 +160,7 @@ def tensorflow_implementation(name_of_model, train_path, valid_path, corpora_nam
 
 
     x_indexes = tf.placeholder(tf.int64, [None, corp.window_length], name='x_indexes')
-    C = tf.Variable(corp.createC(), name='C')
+    C = tf.Variable(tf.truncated_normal([corp.vocabulary_length, corp.num_features], dtype=tf.float64), name='C')
     X = tf.reshape(tf.nn.embedding_lookup(params=C,ids=x_indexes), [-1, corp.num_features*corp.window_length], name='elookup')
     y_actual = tf.placeholder(tf.int64, [None, 1], name='y_actual')
 
@@ -175,11 +186,10 @@ def tensorflow_implementation(name_of_model, train_path, valid_path, corpora_nam
 
     full_mul = b + tf.matmul(X,W) + tf.matmul(layer_tanh,U)
 
-    y_pred_prob = tf.nn.softmax(full_mul)
+    # y_pred_prob = tf.nn.softmax(full_mul)
     y_pred = tf.cast(tf.argmax(full_mul, axis=1),tf.int64, name='y_pred')
     onehot_tar = tf.one_hot(tf.squeeze(y_actual), corp.vocabulary_length, 1.0, 0.0)
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=full_mul,
-                                                           labels=onehot_tar)
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=full_mul,labels=onehot_tar)
 
 
     cost = tf.reduce_mean(cross_entropy, name='cost')
@@ -243,7 +253,7 @@ def tensorflow_implementation(name_of_model, train_path, valid_path, corpora_nam
                     x_indexes: x_batch,
                     y_actual: y_true_batch
                 }
-                val_cst, val_acc= session.run([cost,accuracy], feed_dict=feed_dict_valid)
+                val_cst, val_acc, onehot_tar_test= session.run([cost,accuracy, onehot_tar], feed_dict=feed_dict_valid)
                 avg_val_cost += val_cst / valid_corp.get_total_batches()
                 avg_val_acc += val_acc / valid_corp.get_total_batches()
 
@@ -294,7 +304,9 @@ def load_model(name,chk_num, corpora_name, corpus_path):
         perplex = graph.get_tensor_by_name("perplexity:0")
         accuracy = graph.get_tensor_by_name("accuracy:0")
         cost = graph.get_tensor_by_name("cost:0")
-        corp = select_corpus(name, corpus_path=corpus_path)
+        C = graph.get_tensor_by_name("C:0")
+
+        corp = select_corpus(name, path=corpus_path)
         avg_cost = 0
         avg_acc = 0
         avg_perplex = 0
@@ -311,7 +323,9 @@ def load_model(name,chk_num, corpora_name, corpus_path):
             avg_acc += acc / corp.get_total_batches()
             avg_perplex = np.exp(avg_cost)
         print('cost: {0}, acc: {1}, perplex: {2}'.format(avg_cost, avg_acc, avg_perplex))
+        print(session.run(C))
         # print(session.run([accuracy,perplex,cost], feed_dict_train))
+
 
 def clean_up(name):
     import shutil
@@ -330,13 +344,13 @@ def clean_up(name):
 
 
 def main():
-    # train_path = '../data/corpora/{}.train.txt'
-    # valid_path = '../data/corpora/{}.valid.txt'
-    # test_path = '../data/corpora/{}.test.txt'
+    train_path = '../data/corpora/{}.train.txt'
+    valid_path = '../data/corpora/{}.valid.txt'
+    test_path = '../data/corpora/{}.test.txt'
 
-    # corpus = 'brown'
+    corpus = 'brown'
 
-    # load_model('mlp9', 20, corpus, test_path.format(corpus) )
+    # load_model('mlp1', 20, corpus, valid_path.format(corpus) )
 
     # corp = select_corpus('mlp1',path='data/corpora/{}.train.txt'.format('brown') )
     # print(corp.word_freq_table[:1000])
@@ -344,8 +358,10 @@ def main():
 
 
     # load_model('mlp1', 20)
-    # clean_up(sys.argv[1])
-    tensorflow_implementation(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    clean_up('mlp1')
+    # tensorflow_implementation(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    tensorflow_implementation('mlp1', train_path.format(corpus), valid_path.format(corpus), corpus)
+
     # history= np.loadtxt('history.txt')
 
     # import matplotlib.pyplot as plt
