@@ -95,7 +95,7 @@ class Corpus():
             # all_lines = lines.split(' ')
             all_lines = re.findall(r"[\w']+|[.,!?;]", lines)
             # myset = set()
-            # for word in all_lines[:102400]:
+            # for word in all_lines[:10240]:
             for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
@@ -301,8 +301,9 @@ def select_corpus(name_of_model, path):
         print('Training model{}'.format(name_of_model))
         corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=batch_size, path=path)
     return corp
+
 # provide chkpoint directory and number for inference using provided checkpoint
-def load_model(name,chk_num, corpora_name, corpus_path, training_corp_batch):
+def load_model(name, chk_num, corpora_name, corpus_path, training_corp_batch):
     path = '{2}_model/{0}/model_chkpnts_{1}/'.format(name, chk_num,corpora_name)
     with tf.Session() as session:
         saver = tf.train.import_meta_graph(path+'bengio-'+str(chk_num)+'.meta')
@@ -319,7 +320,7 @@ def load_model(name,chk_num, corpora_name, corpus_path, training_corp_batch):
 
         corp = select_corpus(name, path=corpus_path)
         corp.updateMappings(corp_idx.index_mapper, corp_idx.inv_map)
-        
+
         avg_cost = 0
         avg_acc = 0
         avg_perplex = 0
@@ -331,12 +332,12 @@ def load_model(name,chk_num, corpora_name, corpus_path, training_corp_batch):
                 y_actual: y_actual_batch,
             }
             cst, acc, perplexity = session.run([cost,accuracy,perplex], feed_dict=feed_dict_train)
-            print(cst,acc,perplexity)
+            # print(cst,acc,perplexity)
             avg_cost += cst / corp.get_total_batches()
             avg_acc += acc / corp.get_total_batches()
             avg_perplex = np.exp(avg_cost)
-        print('cost: {0}, acc: {1}, perplex: {2}'.format(avg_cost, avg_acc, avg_perplex))
-        print(session.run(C))
+        print('cost: {0}, acc: {1}, perplexity: {2}'.format(avg_cost, avg_acc, avg_perplex))
+        # print(session.run(C))
         # print(session.run([accuracy,perplex,cost], feed_dict_train))
 
 
@@ -363,19 +364,34 @@ def main():
 
     corpus = 'brown'
 
-    load_model('mlp1', 19, corpus, test_path.format(corpus), train_path.format(corpus) )
-
+    # load_model('mlp1', 19, corpus, test_path.format(corpus))
+    # load_model(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
 
     # clean_up(sys.argv[1])
     # tensorflow_implementation(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    #
 
+    train_f = int(input("Would you like to train or test? Enter 0 for train and 1 for test. Note: Avoid training as this leaves the checkpoints open to being overwritten -> "))
 
+    if train_f == 0:
+        name = input("Enter the name of the model -> ")
+        train = input("Enter the path to the training data, prefer to use the full path -> ")
+        valid = input("Enter the path to the validation data, prefer to use the full path -> ")
+        corpus = input("Enter the name of the corpus -> ")
 
+        # clean_up(name)
+        tensorflow_implementation(name,train,valid,corpus)
 
+    elif train_f == 1:
+        name = input("Enter the name of the model -> ")
+        train = input("Enter the path to the training data, this is required to perform word id updation, prefer to use the full path -> ")
+        test = input("Enter the path to the test data, prefer to use the full path -> ")
+        corpus = input("Enter the name of the corpus -> ")
 
+        load_model(name, 19, corpus, test, train)
 
-
-
+    else:
+        print("Incorrect option")
 
 
 
