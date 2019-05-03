@@ -387,8 +387,9 @@ def main():
         train = input("Enter the path to the training data, this is required to perform word id updation, prefer to use the full path -> ")
         test = input("Enter the path to the test data, prefer to use the full path -> ")
         corpus = input("Enter the name of the corpus -> ")
+        checkpoint = input("Enter checkpoint number -> ")
 
-        load_model(name, 19, corpus, test, train)
+        load_model(name, int(checkpoint), corpus, test, train)
 
     else:
         print("Incorrect option")
