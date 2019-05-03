@@ -14,7 +14,7 @@ import re
 
 
 class Corpus():
-    def __init__(self, name='default', features=60, window_length=4, epochs=50, h=50, batch_size=128, path='../data/corpora/wiki.train.txt'):
+    def __init__(self, name='default', features=60, window_length=4, epochs=20, h=50, batch_size=128, path='../data/corpora/wiki.train.txt'):
         self.path = path
         self.process()
         self.debug_set = set()
@@ -50,6 +50,10 @@ class Corpus():
         print('\t{0}: \t\t{1}'.format(self.path, len(self.all_words_in_corpora)))
         # print('\t--validation-set: \t\t{}'.format(len(self.validation_data)))
         # print('\t--test-set: \t\t\t{}'.format(len(self.test_data)))
+
+    def updateMappings(self, index_mapper, inv_index_mapper):
+        self.index_mapper = index_mapper
+        self.inv_map = inv_index_mapper
 
     def get_batch(self):
         x= []
@@ -91,8 +95,8 @@ class Corpus():
             # all_lines = lines.split(' ')
             all_lines = re.findall(r"[\w']+|[.,!?;]", lines)
             # myset = set()
-            for word in all_lines[:102400]:
-            # for word in all_lines:
+            # for word in all_lines[:102400]:
+            for word in all_lines:
                 # myset.add(word)
                 word_freq_table[word] +=1
                 all_words.append(word)
@@ -141,22 +145,27 @@ def tensorflow_implementation(name_of_model, train_path, valid_path, corpora_nam
         # corp = Corpus(name='mlp1', h=50,features=60, window_length=5, batch_size=1024)
         corp = select_corpus('mlp1', path=train_path)
         valid_corp = select_corpus('mlp1', path=valid_path)
+        valid_corp.updateMappings(corp.index_mapper, corp.inv_map)
     if name_of_model == 'mlp3':
         print('Training model{}'.format(name_of_model))
         corp = select_corpus('mlp3', path=train_path)
         valid_corp = select_corpus('mlp3', path=valid_path)
+        valid_corp.updateMappings(corp.index_mapper, corp.inv_map)
     if name_of_model == 'mlp5':
         print('Training model{}'.format(name_of_model))
         corp = select_corpus('mlp5', path=train_path)
         valid_corp = select_corpus('mlp5', path=valid_path)
+        valid_corp.updateMappings(corp.index_mapper, corp.inv_map)
     if name_of_model == 'mlp7':
         print('Training model{}'.format(name_of_model))
         corp = select_corpus('mlp7', path=train_path)
         valid_corp = select_corpus('mlp7', path=valid_path)
+        valid_corp.updateMappings(corp.index_mapper, corp.inv_map)
     if name_of_model == 'mlp9':
         print('Training model{}'.format(name_of_model))
         corp = select_corpus('mlp9', path=train_path)
         valid_corp = select_corpus('mlp9', path=valid_path)
+        valid_corp.updateMappings(corp.index_mapper, corp.inv_map)
 
 
     x_indexes = tf.placeholder(tf.int64, [None, corp.window_length], name='x_indexes')
@@ -293,7 +302,7 @@ def select_corpus(name_of_model, path):
         corp = Corpus(name='mlp9', h=100,features=30, window_length=5, batch_size=batch_size, path=path)
     return corp
 # provide chkpoint directory and number for inference using provided checkpoint
-def load_model(name,chk_num, corpora_name, corpus_path):
+def load_model(name,chk_num, corpora_name, corpus_path, training_corp_batch):
     path = '{2}_model/{0}/model_chkpnts_{1}/'.format(name, chk_num,corpora_name)
     with tf.Session() as session:
         saver = tf.train.import_meta_graph(path+'bengio-'+str(chk_num)+'.meta')
@@ -306,7 +315,11 @@ def load_model(name,chk_num, corpora_name, corpus_path):
         cost = graph.get_tensor_by_name("cost:0")
         C = graph.get_tensor_by_name("C:0")
 
+        corp_idx = select_corpus(name, path=training_corp_batch)
+
         corp = select_corpus(name, path=corpus_path)
+        corp.updateMappings(corp_idx.index_mapper, corp_idx.inv_map)
+        
         avg_cost = 0
         avg_acc = 0
         avg_perplex = 0
@@ -334,7 +347,7 @@ def clean_up(name):
     chkpoints = 'model/{}'.format(name)
     r = glob.glob(chkpoints)
     print(r)
-    dir_to_remove = ['logs']+r
+    dir_to_remove = ['logs/{}'.format(name)]+r
     # print(dir_to_remove)
     for i in dir_to_remove:
         try:
@@ -350,28 +363,12 @@ def main():
 
     corpus = 'brown'
 
-    # load_model('mlp1', 20, corpus, valid_path.format(corpus) )
-
-    # corp = select_corpus('mlp1',path='data/corpora/{}.train.txt'.format('brown') )
-    # print(corp.word_freq_table[:1000])
+    load_model('mlp1', 19, corpus, test_path.format(corpus), train_path.format(corpus) )
 
 
-
-    # load_model('mlp1', 20)
-    clean_up('mlp1')
+    # clean_up(sys.argv[1])
     # tensorflow_implementation(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
-    tensorflow_implementation('mlp1', train_path.format(corpus), valid_path.format(corpus), corpus)
 
-    # history= np.loadtxt('history.txt')
-
-    # import matplotlib.pyplot as plt
-    # print(history)
-    # print(history.shape)
-    # print(history[:,1])
-    # plt.plot(history[:,1])
-    # plt.show()
-    #
-    # load_model('./model_chkpnts_90/',90)
 
 
 
